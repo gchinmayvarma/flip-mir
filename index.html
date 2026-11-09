@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070a">
+<title>FlipMir</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#05070a; --bg2:#0a0e14; --panel:rgba(9,13,19,.86);
+  --line:#161e29; --line2:#243042;
+  --text:#d6e2ee; --dim:#71839a; --faint:#3a4758;
+  --true:#3ee8ff; --mirror:#ffb03b; --danger:#ff5d6c;
+  --mode:var(--true);
+  --display:"Chakra Petch","JetBrains Mono",ui-monospace,monospace;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --ease:cubic-bezier(.7,0,.3,1);
+}
+body[data-mode="mirror"]{--mode:var(--mirror)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg);color:var(--text);
+  font:13px/1.45 var(--mono);
+  display:flex;flex-direction:column;
+  height:100vh;height:100dvh;overflow:hidden;
+  -webkit-tap-highlight-color:transparent;
+}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--mode);outline-offset:2px}
+[hidden]{display:none!important}
+
+/* ── top bar ─────────────────────────────────────────── */
+.bar{
+  display:flex;align-items:center;gap:14px;
+  padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(var(--bg2),var(--bg));
+  position:relative;z-index:10;
+}
+.brand{display:flex;align-items:center;gap:9px;font:700 18px/1 var(--display);letter-spacing:.1em;white-space:nowrap}
+.brand svg{color:var(--mode);transition:color .3s}
+.brand em{font-style:normal;color:var(--mode);transition:color .3s}
+.readout{display:flex;gap:14px;color:var(--dim);font-size:11px;letter-spacing:.06em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.live{display:flex;align-items:center;gap:6px;color:var(--text)}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--danger);box-shadow:0 0 8px var(--danger);animation:blink 1.6s infinite}
+.live.off i{background:var(--faint);box-shadow:none;animation:none}
+@keyframes blink{50%{opacity:.25}}
+.spacer{flex:1}
+.src{
+  position:relative;display:flex;align-items:center;gap:8px;
+  height:36px;padding:0 10px;min-width:0;max-width:min(46vw,340px);
+  border:1px solid var(--line2);border-radius:9px;background:var(--bg2);
+}
+.src:focus-within{border-color:var(--mode)}
+.src span{color:var(--dim);font-size:10px;letter-spacing:.14em}
+.src select{
+  appearance:none;-webkit-appearance:none;background:transparent;border:0;outline:none;
+  min-width:0;flex:1;padding-right:16px;text-overflow:ellipsis;cursor:pointer;font-size:12px;
+}
+.src select option{background:var(--bg2)}
+.src::after{content:"";position:absolute;right:11px;top:50%;width:6px;height:6px;border:solid var(--dim);border-width:0 1.5px 1.5px 0;transform:translateY(-70%) rotate(45deg);pointer-events:none}
+.iconbtn{width:36px;height:36px;display:grid;place-items:center;border-radius:9px;border:1px solid var(--line2);background:var(--bg2);flex:none}
+.iconbtn:hover{border-color:var(--faint)}
+@media (max-width:620px){.readout{display:none}.brand b{display:none}.bar{gap:10px}}
+
+/* ── stage ───────────────────────────────────────────── */
+.stage{
+  position:relative;flex:1;min-height:0;display:grid;gap:2px;
+  background:#000;touch-action:manipulation;
+  transition:padding .35s var(--ease),background .35s;
+}
+.stage.split{grid-template-columns:1fr 1fr;background:var(--line2)}
+@media (orientation:portrait){.stage.split{grid-template-columns:1fr;grid-template-rows:1fr 1fr}}
+.stage.ring{padding:var(--ring-w,8vmin);padding-bottom:calc(var(--ring-w,8vmin) + 40px);background:var(--ring-c,#fff)}
+.view{position:relative;overflow:hidden;background:#000;min-width:0;min-height:0;transition:border-radius .35s}
+.stage.ring .view{border-radius:22px}
+#viewB{display:none}
+.stage.split #viewB{display:block}
+.view[data-mode="true"]{--mode:var(--true)}
+.view[data-mode="mirror"]{--mode:var(--mirror)}
+.view video{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:var(--fit,cover);filter:var(--fx,none);
+  transition:transform .42s var(--ease);will-change:transform;
+}
+.tint{position:absolute;inset:0;pointer-events:none;mix-blend-mode:soft-light;background:var(--tint-c,transparent);opacity:var(--tint-a,0)}
+
+/* guides */
+.guide{position:absolute;inset:0;pointer-events:none;display:none}
+.g-center .guide.center{display:block}
+.guide.center::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:0;border-left:1px dashed color-mix(in srgb,var(--mode) 70%,transparent)}
+.guide.center::after{content:"";position:absolute;left:0;right:0;top:42%;border-top:1px dashed color-mix(in srgb,var(--mode) 35%,transparent)}
+.g-thirds .guide.thirds{display:block}
+.guide.thirds{
+  background:
+    linear-gradient(90deg,transparent calc(33.33% - .5px),rgba(255,255,255,.22) 0 calc(33.33% + .5px),transparent 0 calc(66.66% - .5px),rgba(255,255,255,.22) 0 calc(66.66% + .5px),transparent 0),
+    linear-gradient(transparent calc(33.33% - .5px),rgba(255,255,255,.22) 0 calc(33.33% + .5px),transparent 0 calc(66.66% - .5px),rgba(255,255,255,.22) 0 calc(66.66% + .5px),transparent 0);
+}
+.hud .guide.scan{display:block}
+.guide.scan{
+  background:
+    repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px),
+    radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.45) 100%);
+}
+.hud .guide.corners{display:block}
+.guide.corners i{position:absolute;width:22px;height:22px;border:2px solid var(--mode);opacity:.85}
+.guide.corners i:nth-child(1){top:12px;left:12px;border-width:2px 0 0 2px}
+.guide.corners i:nth-child(2){top:12px;right:12px;border-width:2px 2px 0 0}
+.guide.corners i:nth-child(3){bottom:12px;left:12px;border-width:0 0 2px 2px}
+.guide.corners i:nth-child(4){bottom:12px;right:12px;border-width:0 2px 2px 0}
+
+.tag{
+  position:absolute;top:16px;left:44px;z-index:2;
+  display:flex;align-items:baseline;gap:9px;padding:6px 11px;
+  background:rgba(5,7,10,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border:1px solid color-mix(in srgb,var(--mode) 45%,transparent);border-radius:7px;
+  font-size:11px;color:var(--dim);pointer-events:none;
+  transition:border-color .3s;
+}
+.tag b{font:600 13px/1 var(--display);letter-spacing:.16em;color:var(--mode);transition:color .3s}
+@media (max-width:420px){.tag span{display:none}}
+
+#flash{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:4}
+#flash span{font:700 clamp(40px,12vw,128px)/1 var(--display);letter-spacing:.22em;color:var(--mode);opacity:0}
+#flash.show span{animation:flash .75s ease-out}
+@keyframes flash{
+  0%{opacity:0;transform:scale(1.1);text-shadow:4px 0 rgba(255,0,90,.8),-4px 0 rgba(0,255,255,.8)}
+  14%{opacity:1;transform:none;text-shadow:2px 0 rgba(255,0,90,.6),-2px 0 rgba(0,255,255,.6)}
+  28%{text-shadow:0 0 32px color-mix(in srgb,var(--mode) 60%,transparent)}
+  70%{opacity:.85}
+  100%{opacity:0;letter-spacing:.36em}
+}
+#shutter{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:5}
+#shutter.go{animation:shut .35s ease-out}
+@keyframes shut{0%{opacity:.85}100%{opacity:0}}
+
+/* gate / no signal */
+.gate{
+  position:absolute;inset:0;z-index:6;display:grid;place-items:center;padding:16px;
+  background:
+    repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 4px),
+    radial-gradient(ellipse at center,#0b121b,#030405 75%);
+}
+.gate-card{max-width:380px;display:flex;flex-direction:column;gap:12px}
+.gate-k{color:var(--true);font-size:11px;letter-spacing:.2em}
+.gate h2{margin:0;font:600 26px/1.1 var(--display);letter-spacing:.04em;text-wrap:balance}
+.gate p{margin:0;color:var(--dim);line-height:1.6}
+.gate button{
+  align-self:flex-start;margin-top:6px;height:42px;padding:0 18px;border-radius:10px;
+  border:1px solid var(--true);background:color-mix(in srgb,var(--true) 12%,transparent);color:var(--true);
+  font:600 13px var(--display);letter-spacing:.14em;
+}
+.gate button:hover{background:color-mix(in srgb,var(--true) 22%,transparent)}
+.gate.wait button{display:none}
+.gate.wait .gate-k::after{content:"_";animation:blink 1s steps(1) infinite}
+
+/* ── dock ────────────────────────────────────────────── */
+.dock{
+  position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+  z-index:20;display:flex;align-items:center;gap:6px;padding:7px;
+  background:var(--panel);-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);
+  border:1px solid var(--line2);border-radius:20px;box-shadow:0 12px 40px rgba(0,0,0,.55);
+}
+.dbtn{
+  width:54px;height:54px;flex:none;border-radius:14px;border:1px solid transparent;background:transparent;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--text);
+}
+.dbtn .lbl{font-size:9px;letter-spacing:.14em;color:var(--dim)}
+.dbtn:hover{background:rgba(255,255,255,.05)}
+.dbtn[aria-pressed="true"]{background:rgba(255,255,255,.07);border-color:var(--line2);color:var(--mode)}
+.dbtn[aria-pressed="true"] .lbl{color:var(--mode)}
+.flip{
+  position:relative;display:grid;grid-template-columns:1fr 1fr;flex:none;
+  width:180px;height:54px;padding:4px;border-radius:14px;
+  border:1px solid var(--line2);background:#06090d;
+}
+.flip .knob{
+  position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:10px;
+  background:var(--mode);box-shadow:0 0 24px color-mix(in srgb,var(--mode) 45%,transparent);
+  transition:transform .42s var(--ease),background .3s,box-shadow .3s;
+}
+body[data-mode="true"] .flip .knob{transform:translateX(100%)}
+.flip .opt{position:relative;z-index:1;display:grid;place-items:center;font:600 12px/1 var(--display);letter-spacing:.16em;color:var(--dim);transition:color .3s}
+body[data-mode="mirror"] .opt[data-opt="mirror"],
+body[data-mode="true"] .opt[data-opt="true"]{color:#03060a}
+@media (max-width:400px){.dbtn{width:48px}.flip{width:160px}.dock{gap:4px;padding:6px}}
+
+/* ── tune panel ──────────────────────────────────────── */
+.panel{
+  position:fixed;z-index:15;overflow:auto;overscroll-behavior:contain;
+  background:var(--panel);-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3);
+  border:1px solid var(--line2);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.6);
+  left:8px;right:8px;bottom:calc(98px + env(safe-area-inset-bottom,0px));max-height:56dvh;
+  transform:translateY(24px);opacity:0;visibility:hidden;
+  transition:transform .32s var(--ease),opacity .25s,visibility 0s .32s;
+}
+.panel.open{transform:none;opacity:1;visibility:visible;transition:transform .32s var(--ease),opacity .25s}
+@media (min-width:760px){
+  .panel{left:auto;right:16px;width:340px;top:calc(70px + env(safe-area-inset-top,0px));bottom:calc(98px + env(safe-area-inset-bottom,0px));max-height:none;transform:translateX(24px)}
+}
+.ph{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.ph b{font:600 14px var(--display);letter-spacing:.18em}
+.ph span{color:var(--dim);font-size:11px;flex:1}
+.ph button{width:30px;height:30px;border-radius:8px;border:1px solid var(--line2);background:transparent;display:grid;place-items:center}
+.sec{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
+.sec:last-child{border-bottom:0}
+.sec h3{margin:0;font:600 10px var(--mono);letter-spacing:.2em;color:var(--dim);text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}
+.sec h3 button{border:0;background:none;color:var(--true);font-size:10px;letter-spacing:.14em;padding:2px 0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.row > label,.row > span:first-child{color:var(--text);font-size:12px}
+.seg{display:flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:6px 10px;font-size:11px;color:var(--dim);border-left:1px solid var(--line2)}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"]{background:color-mix(in srgb,var(--true) 16%,transparent);color:var(--true)}
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.chips button{height:34px;border-radius:8px;border:1px solid var(--line2);background:transparent;font-size:11px;letter-spacing:.06em;color:var(--dim)}
+.chips button[aria-pressed="true"]{border-color:var(--true);color:var(--true);background:color-mix(in srgb,var(--true) 10%,transparent)}
+.slider{display:grid;grid-template-columns:86px 1fr 44px;align-items:center;gap:10px}
+.slider label{font-size:12px}
+.slider output{text-align:right;color:var(--dim);font-size:11px;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:24px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--line2);border-radius:2px}
+input[type=range]::-moz-range-track{height:2px;background:var(--line2);border-radius:2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-6px;border-radius:4px;background:var(--true);box-shadow:0 0 10px color-mix(in srgb,var(--true) 60%,transparent)}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:4px;background:var(--true)}
+.sw{position:relative;width:38px;height:22px;flex:none}
+.sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.sw i{position:absolute;inset:0;border-radius:22px;background:var(--line2);transition:background .2s}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--dim);transition:transform .2s var(--ease),background .2s}
+.sw input:checked + i{background:color-mix(in srgb,var(--true) 30%,transparent)}
+.sw input:checked + i::after{transform:translateX(16px);background:var(--true)}
+.sw input:focus-visible + i{outline:2px solid var(--true);outline-offset:2px}
+.hint{color:var(--dim);font-size:11px;line-height:1.5;margin:-4px 0 0}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:11px;color:var(--dim)}
+.keys kbd{font:600 10px var(--mono);color:var(--text);border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:2px 6px;text-align:center}
+@media (pointer:coarse){.sec.kb{display:none}}
+
+/* ── capture toast ───────────────────────────────────── */
+.shot{
+  position:fixed;z-index:25;right:16px;top:calc(68px + env(safe-area-inset-top,0px));
+  width:min(240px,calc(100vw - 32px));padding:8px;display:flex;flex-direction:column;gap:8px;
+  background:var(--panel);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+  border:1px solid var(--line2);border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.6);
+  animation:pop .3s var(--ease);
+}
+@keyframes pop{from{transform:translateY(-8px);opacity:0}}
+.shot img{width:100%;border-radius:8px;display:block;background:#000}
+.shot-actions{display:flex;gap:6px}
+.shot-actions a,.shot-actions button{
+  flex:1;height:34px;display:grid;place-items:center;border-radius:8px;border:1px solid var(--line2);
+  background:transparent;text-decoration:none;color:var(--text);font-size:11px;letter-spacing:.1em;
+}
+.shot-actions a{border-color:var(--true);color:var(--true)}
+.shot-actions button.x{flex:0 0 34px}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition-duration:0s!important;animation-duration:0s!important;animation-iteration-count:1!important}
+}
+</style>
+</head>
+<body data-mode="true">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-axis" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+    <path d="M12 2v20" stroke-dasharray="2.5 2.5"/><path d="M9 6 3 18h6z"/><path d="M15 6l6 12h-6z" fill="currentColor" fill-opacity=".25"/>
+  </symbol>
+  <symbol id="i-split" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-snap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.8l1.5-2.2h6.4L16.7 7h2.8A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></symbol>
+  <symbol id="i-tune" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+  <symbol id="i-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+</svg>
+
+<header class="bar">
+  <div class="brand"><svg width="22" height="22"><use href="#i-axis"/></svg><span>FLIP<em>/</em>MIR</span></div>
+  <div class="readout" aria-live="off">
+    <span class="live off" id="roLive"><i></i>NO SIGNAL</span>
+    <span id="roRes">—</span>
+    <span id="roFps">—</span>
+  </div>
+  <div class="spacer"></div>
+  <label class="src" for="camSel" title="Camera source">
+    <span>SRC</span>
+    <select id="camSel" aria-label="Camera"><option value="">Default camera</option></select>
+  </label>
+  <button class="iconbtn" id="fsBtn" aria-label="Fullscreen" title="Fullscreen"><svg width="18" height="18"><use href="#i-full"/></svg></button>
+</header>
+
+<main class="stage hud" id="stage">
+  <div class="view" id="viewA" data-mode="true">
+    <video id="vA" autoplay playsinline muted></video>
+    <div class="tint"></div>
+    <div class="guide scan"></div>
+    <div class="guide thirds"></div>
+    <div class="guide center"></div>
+    <div class="guide corners"><i></i><i></i><i></i><i></i></div>
+    <div class="tag"><b>TRUE</b><span>as others see you</span></div>
+  </div>
+  <div class="view" id="viewB" data-mode="mirror">
+    <video id="vB" autoplay playsinline muted></video>
+    <div class="tint"></div>
+    <div class="guide scan"></div>
+    <div class="guide thirds"></div>
+    <div class="guide center"></div>
+    <div class="guide corners"><i></i><i></i><i></i><i></i></div>
+    <div class="tag"><b>MIRROR</b><span>as a mirror shows you</span></div>
+  </div>
+  <div id="flash"><span></span></div>
+  <div id="shutter"></div>
+  <div class="gate wait" id="gate">
+    <div class="gate-card">
+      <div class="gate-k" id="gateK">// ACQUIRING SIGNAL</div>
+      <h2 id="gateTitle">Waiting for the camera</h2>
+      <p id="gateMsg">Allow camera access when your browser asks.</p>
+      <button id="gateBtn">ENABLE CAMERA</button>
+    </div>
+  </div>
+</main>
+
+<nav class="dock" aria-label="Controls">
+  <button class="dbtn" id="splitBtn" aria-pressed="false" title="Show both  [S]"><svg width="22" height="22"><use href="#i-split"/></svg><span class="lbl">BOTH</span></button>
+  <button class="flip" id="flipBtn" title="Flip  [F]  ·  or double-tap the video" aria-label="Flip between mirror and true view">
+    <span class="knob"></span>
+    <span class="opt" data-opt="mirror">MIRROR</span>
+    <span class="opt" data-opt="true">TRUE</span>
+  </button>
+  <button class="dbtn" id="snapBtn" title="Take photo  [P]"><svg width="22" height="22"><use href="#i-snap"/></svg><span class="lbl">SNAP</span></button>
+  <button class="dbtn" id="tuneBtn" aria-pressed="false" aria-controls="panel" title="Tune  [T]"><svg width="22" height="22"><use href="#i-tune"/></svg><span class="lbl">TUNE</span></button>
+</nav>
+
+<aside class="panel" id="panel" aria-label="Tune" inert>
+  <div class="ph"><b>TUNE</b><span>// camera · look · guides</span><button id="panelClose" aria-label="Close"><svg width="14" height="14"><use href="#i-x"/></svg></button></div>
+
+  <section class="sec">
+    <h3>Camera</h3>
+    <div class="row"><span>Resolution</span>
+      <div class="seg" data-key="res">
+        <button data-v="480">480p</button><button data-v="720">720p</button><button data-v="1080">1080p</button><button data-v="2160">4K</button>
+      </div>
+    </div>
+    <div class="row"><span>Framing</span>
+      <div class="seg" data-key="fit"><button data-v="cover">Fill</button><button data-v="contain">Whole frame</button></div>
+    </div>
+    <div class="slider"><label for="s-zoom">Zoom</label><input id="s-zoom" type="range" min="1" max="3" step="0.05" data-key="zoom"><output data-for="zoom"></output></div>
+    <div class="row" id="torchRow" hidden><label for="t-torch">Flashlight</label><span class="sw"><input id="t-torch" type="checkbox"><i></i></span></div>
+  </section>
+
+  <section class="sec">
+    <h3>Look <button id="lookReset">RESET</button></h3>
+    <div class="chips" id="chips"></div>
+    <div class="slider"><label for="s-bright">Brightness</label><input id="s-bright" type="range" min="50" max="160" step="1" data-key="bright"><output data-for="bright"></output></div>
+    <div class="slider"><label for="s-contrast">Contrast</label><input id="s-contrast" type="range" min="50" max="160" step="1" data-key="contrast"><output data-for="contrast"></output></div>
+    <div class="slider"><label for="s-sat">Saturation</label><input id="s-sat" type="range" min="0" max="200" step="1" data-key="sat"><output data-for="sat"></output></div>
+    <div class="slider"><label for="s-temp">Warmth</label><input id="s-temp" type="range" min="-50" max="50" step="1" data-key="temp"><output data-for="temp"></output></div>
+  </section>
+
+  <section class="sec">
+    <h3>Guides</h3>
+    <div class="row"><label for="t-center">Centre line</label><span class="sw"><input id="t-center" type="checkbox" data-key="center"><i></i></span></div>
+    <p class="hint">Splits your face down the middle. Handy for spotting asymmetry between the two views.</p>
+    <div class="row"><label for="t-thirds">Thirds grid</label><span class="sw"><input id="t-thirds" type="checkbox" data-key="thirds"><i></i></span></div>
+    <div class="row"><label for="t-hud">HUD + scanlines</label><span class="sw"><input id="t-hud" type="checkbox" data-key="hud"><i></i></span></div>
+  </section>
+
+  <section class="sec">
+    <h3>Ring light</h3>
+    <div class="row"><label for="t-ring">Screen ring light</label><span class="sw"><input id="t-ring" type="checkbox" data-key="ring"><i></i></span></div>
+    <p class="hint">Turns the screen edge into a light source. Best in a dark room with brightness turned up.</p>
+    <div class="slider"><label for="s-ringW">Width</label><input id="s-ringW" type="range" min="3" max="20" step="1" data-key="ringW"><output data-for="ringW"></output></div>
+    <div class="slider"><label for="s-ringT">Tone</label><input id="s-ringT" type="range" min="0" max="100" step="1" data-key="ringT"><output data-for="ringT"></output></div>
+  </section>
+
+  <section class="sec kb">
+    <h3>Keys</h3>
+    <div class="keys">
+      <kbd>F</kbd><span>flip mirror / true</span>
+      <kbd>S</kbd><span>show both side by side</span>
+      <kbd>P</kbd><span>take a photo</span>
+      <kbd>T</kbd><span>open or close this panel</span>
+      <kbd>C</kbd><span>next camera</span>
+    </div>
+  </section>
+</aside>
+
+<div class="shot" id="shot" hidden>
+  <img id="shotImg" alt="Captured photo">
+  <div class="shot-actions">
+    <a id="shotSave" href="#" download>SAVE</a>
+    <button id="shotShare" hidden>SHARE</button>
+    <button class="x" id="shotClose" aria-label="Dismiss"><svg width="12" height="12"><use href="#i-x"/></svg></button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const stage = $('#stage'), vA = $('#vA'), vB = $('#vB');
+  const viewA = $('#viewA'), viewB = $('#viewB');
+
+  /* ── state ─────────────────────────────────────────── */
+  const RES = { '480':[640,480], '720':[1280,720], '1080':[1920,1080], '2160':[3840,2160] };
+  const PRESETS = {
+    none:  { label:'Clean',     fx:'' },
+    vivid: { label:'Vivid',     fx:'saturate(1.4) contrast(1.08)' },
+    soft:  { label:'Soft',      fx:'contrast(.9) brightness(1.06) saturate(.92)' },
+    noir:  { label:'Noir',      fx:'grayscale(1) contrast(1.3)' },
+    night: { label:'Night-vis', fx:'grayscale(1) sepia(1) hue-rotate(58deg) saturate(3.2) brightness(1.15) contrast(1.15)' },
+    xray:  { label:'X-ray',     fx:'grayscale(1) invert(1) contrast(1.35)' },
+  };
+  const LOOK = { preset:'none', bright:100, contrast:100, sat:100, temp:0 };
+  const DEFAULTS = { mirrored:false, split:false, deviceId:'', res:'720', fit:'cover', zoom:1,
+    center:false, thirds:false, hud:true, ring:false, ringW:8, ringT:30, ...LOOK };
+
+  const store = {
+    get(k, d){ try { const v = localStorage.getItem('flipmir:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v){ try { localStorage.setItem('flipmir:' + k, JSON.stringify(v)); } catch {} },
+  };
+  const state = { ...DEFAULTS, ...store.get('state', {}) };
+  if (!PRESETS[state.preset]) state.preset = 'none';
+  const save = () => store.set('state', state);
+
+  /* ── rendering ─────────────────────────────────────── */
+  function filterStr(){
+    const parts = [PRESETS[state.preset].fx];
+    if (state.bright != 100)   parts.push(`brightness(${state.bright / 100})`);
+    if (state.contrast != 100) parts.push(`contrast(${state.contrast / 100})`);
+    if (state.sat != 100)      parts.push(`saturate(${state.sat / 100})`);
+    return parts.join(' ').trim() || 'none';
+  }
+  const tint = () => ({ color: state.temp > 0 ? '#ff8a2a' : '#2a8cff', alpha: Math.abs(state.temp) / 50 * 0.6 });
+
+  function applyView(view, video, mirrored){
+    const z = +state.zoom;
+    video.style.transform = `scale(${mirrored ? -z : z}, ${z})`;
+    view.dataset.mode = mirrored ? 'mirror' : 'true';
+    view.querySelector('.tag b').textContent = mirrored ? 'MIRROR' : 'TRUE';
+    view.querySelector('.tag span').textContent = mirrored ? 'as a mirror shows you' : 'as others see you';
+  }
+
+  function render(){
+    document.body.dataset.mode = state.mirrored ? 'mirror' : 'true';
+    stage.classList.toggle('split', state.split);
+    stage.classList.toggle('ring', state.ring);
+    stage.classList.toggle('g-center', state.center);
+    stage.classList.toggle('g-thirds', state.thirds);
+    stage.classList.toggle('hud', state.hud);
+    const t = tint();
+    stage.style.setProperty('--fit', state.fit);
+    stage.style.setProperty('--fx', filterStr());
+    stage.style.setProperty('--tint-c', t.color);
+    stage.style.setProperty('--tint-a', t.alpha);
+    stage.style.setProperty('--ring-w', state.ringW + 'vmin');
+    stage.style.setProperty('--ring-c', `color-mix(in srgb, #ffffff, #ffc888 ${state.ringT}%)`);
+    applyView(viewA, vA, state.mirrored);
+    applyView(viewB, vB, !state.mirrored);
+    $('#splitBtn').setAttribute('aria-pressed', state.split);
+    // second video only decodes while split is on
+    const want = state.split ? stream : null;
+    if (vB.srcObject !== want) { vB.srcObject = want; if (want) vB.play().catch(() => {}); }
+    updateOutputs();
+  }
+
+  /* ── controls ──────────────────────────────────────── */
+  const fmt = {
+    zoom: v => (+v).toFixed(2).replace(/0$/, '') + '×',
+    temp: v => (v > 0 ? '+' : '') + v,
+    ringW: v => v,
+    ringT: v => v < 20 ? 'cool' : v > 70 ? 'warm' : 'neutral',
+  };
+  function updateOutputs(){
+    document.querySelectorAll('output[data-for]').forEach(o => {
+      const k = o.dataset.for; o.textContent = (fmt[k] || (v => v + '%'))(state[k]);
+    });
+  }
+  function syncControls(){
+    document.querySelectorAll('input[type=range][data-key]').forEach(i => i.value = state[i.dataset.key]);
+    document.querySelectorAll('input[type=checkbox][data-key]').forEach(i => i.checked = !!state[i.dataset.key]);
+    document.querySelectorAll('.seg[data-key]').forEach(seg => seg.querySelectorAll('button').forEach(b =>
+      b.setAttribute('aria-pressed', b.dataset.v === String(state[seg.dataset.key]))));
+    document.querySelectorAll('#chips button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === state.preset));
+  }
+
+  $('#chips').innerHTML = Object.entries(PRESETS).map(([k, p]) => `<button data-v="${k}">${p.label}</button>`).join('');
+  $('#chips').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.preset = b.dataset.v; save(); syncControls(); render();
+  });
+  document.querySelectorAll('input[type=range][data-key]').forEach(i => i.addEventListener('input', () => {
+    state[i.dataset.key] = +i.value; save(); render();
+  }));
+  document.querySelectorAll('input[type=checkbox][data-key]').forEach(i => i.addEventListener('change', () => {
+    state[i.dataset.key] = i.checked; save(); render();
+  }));
+  document.querySelectorAll('.seg[data-key]').forEach(seg => seg.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const k = seg.dataset.key, changed = state[k] !== b.dataset.v;
+    state[k] = b.dataset.v; save(); syncControls(); render();
+    if (k === 'res' && changed) startCamera();
+  }));
+  $('#lookReset').addEventListener('click', () => { Object.assign(state, LOOK); save(); syncControls(); render(); });
+
+  /* ── flip / split / panel ──────────────────────────── */
+  function pulse(text){
+    const f = $('#flash'), s = f.querySelector('span');
+    s.textContent = text; f.classList.remove('show'); void f.offsetWidth; f.classList.add('show');
+  }
+  function flip(){
+    state.mirrored = !state.mirrored; save(); render();
+    pulse(state.split ? '⇄' : state.mirrored ? 'MIRROR' : 'TRUE');
+  }
+  function toggleSplit(){ state.split = !state.split; save(); render(); }
+  function setPanel(open){
+    const p = $('#panel');
+    p.classList.toggle('open', open);
+    p.inert = !open;
+    $('#tuneBtn').setAttribute('aria-pressed', open);
+  }
+  $('#flipBtn').addEventListener('click', flip);
+  $('#splitBtn').addEventListener('click', toggleSplit);
+  $('#tuneBtn').addEventListener('click', () => setPanel(!$('#panel').classList.contains('open')));
+  $('#panelClose').addEventListener('click', () => setPanel(false));
+
+  // double-tap / double-click the video to flip
+  let lastTap = 0;
+  stage.addEventListener('pointerup', e => {
+    if (e.target.closest('.gate')) return;
+    const now = performance.now();
+    if (now - lastTap < 320) { flip(); lastTap = 0; } else lastTap = now;
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.matches('select, input:not([type=checkbox]):not([type=range])')) return;
+    const k = e.key.toLowerCase();
+    if (k === 'f') flip();
+    else if (k === 's') toggleSplit();
+    else if (k === 'p') snapshot();
+    else if (k === 't') setPanel(!$('#panel').classList.contains('open'));
+    else if (k === 'c') nextCamera();
+    else if (k === 'escape') { setPanel(false); hideShot(); }
+    else return;
+    e.preventDefault();
+  });
+
+  /* fullscreen */
+  const fsBtn = $('#fsBtn');
+  if (!document.fullscreenEnabled) fsBtn.hidden = true;
+  fsBtn.addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else document.documentElement.requestFullscreen().catch(() => {});
+  });
+
+  /* ── camera ────────────────────────────────────────── */
+  let stream = null, track = null, attempt = 0, cams = [];
+  const camSel = $('#camSel');
+
+  const gate = $('#gate');
+  function showGate(kind, err){
+    const msgs = {
+      wait:     ['// ACQUIRING SIGNAL', 'Waiting for the camera', 'Allow camera access when your browser asks.'],
+      insecure: ['// BLOCKED', 'This page needs a secure address', 'Browsers only allow the camera on https:// pages or on localhost. Host this file somewhere with https, or open it from localhost.'],
+      NotAllowedError: ['// ACCESS DENIED', 'Camera permission is blocked', 'Allow the camera from the site settings next to the address bar, then try again.'],
+      NotFoundError:   ['// NO DEVICE', 'No camera found', 'Connect a camera, then try again.'],
+      NotReadableError:['// DEVICE BUSY', 'The camera is in use', 'Another app (Zoom, Teams, OBS…) may have it. Close that app, then try again.'],
+      ended:    ['// SIGNAL LOST', 'The camera disconnected', 'Reconnect it or pick another source, then try again.'],
+      other:    ['// ERROR', 'The camera did not start', ''],
+    };
+    const key = msgs[kind] ? kind : (err && msgs[err.name]) ? err.name : 'other';
+    const [k, title, msg] = msgs[key];
+    $('#gateK').textContent = k;
+    $('#gateTitle').textContent = title;
+    $('#gateMsg').textContent = msg || (err ? `${err.name}: ${err.message}` : '');
+    gate.classList.toggle('wait', kind === 'wait');
+    gate.hidden = false;
+    $('#roLive').classList.add('off'); $('#roLive').lastChild.textContent = 'NO SIGNAL';
+  }
+  const hideGate = () => { gate.hidden = true; };
+  $('#gateBtn').addEventListener('click', () => startCamera());
+
+  function stopCamera(){
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = track = null;
+  }
+
+  async function startCamera(){
+    const my = ++attempt;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showGate('insecure'); return; }
+    showGate('wait');
+    stopCamera();
+    const [w, h] = RES[state.res] || RES['720'];
+    const video = { width:{ ideal:w }, height:{ ideal:h }, frameRate:{ ideal:30 } };
+    if (state.deviceId) video.deviceId = { exact: state.deviceId }; else video.facingMode = 'user';
+    let s;
+    try {
+      s = await navigator.mediaDevices.getUserMedia({ video, audio:false });
+    } catch (err) {
+      if (my !== attempt) return;
+      if (state.deviceId && ['OverconstrainedError','NotFoundError','NotReadableError'].includes(err.name)) {
+        state.deviceId = ''; save(); return startCamera();   // saved camera is gone; fall back to default
+      }
+      showGate('error', err); return;
+    }
+    if (my !== attempt) { s.getTracks().forEach(t => t.stop()); return; }
+    stream = s; track = s.getVideoTracks()[0];
+    const id = track.getSettings().deviceId;
+    if (id) { state.deviceId = id; save(); }
+    track.addEventListener('ended', () => { if (track && track.readyState === 'ended') showGate('ended'); });
+    vA.srcObject = s;
+    vA.play().catch(() => {});
+    render();
+    hideGate();
+    $('#roLive').classList.remove('off'); $('#roLive').lastChild.textContent = 'LIVE';
+    refreshDevices();
+    setupTorch();
+    startFps();
+    keepAwake();
+  }
+
+  const cleanLabel = l => l.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, '').trim();
+  async function refreshDevices(){
+    try {
+      cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+    } catch { return; }
+    camSel.innerHTML = '';
+    if (!cams.length) { camSel.add(new Option('No camera', '')); return; }
+    cams.forEach((d, i) => camSel.add(new Option(cleanLabel(d.label) || `Camera ${i + 1}`, d.deviceId)));
+    const cur = track && track.getSettings().deviceId;
+    if (cur && cams.some(c => c.deviceId === cur)) camSel.value = cur;
+  }
+  camSel.addEventListener('change', () => { state.deviceId = camSel.value; save(); startCamera(); });
+  function nextCamera(){
+    if (cams.length < 2) return;
+    const i = cams.findIndex(c => c.deviceId === camSel.value);
+    state.deviceId = cams[(i + 1) % cams.length].deviceId; save(); startCamera();
+  }
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener)
+    navigator.mediaDevices.addEventListener('devicechange', refreshDevices);
+
+  /* flashlight on rear cameras that support it */
+  const torch = $('#t-torch');
+  function setupTorch(){
+    const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+    $('#torchRow').hidden = !caps.torch;
+    torch.checked = false;
+  }
+  torch.addEventListener('change', () => {
+    if (!track) return;
+    track.applyConstraints({ advanced:[{ torch: torch.checked }] }).catch(() => { torch.checked = false; });
+  });
+
+  /* readout */
+  let fps = 0, frames = 0, fpsT = performance.now(), fpsOn = false;
+  function updateReadout(){
+    $('#roRes').textContent = vA.videoWidth ? `${vA.videoWidth}×${vA.videoHeight}` : '—';
+    const f = fps || (track && track.getSettings().frameRate) || 0;
+    $('#roFps').textContent = f ? `${f.toFixed(1)} FPS` : '—';
+  }
+  vA.addEventListener('resize', updateReadout);
+  vA.addEventListener('loadedmetadata', updateReadout);
+  function startFps(){
+    if (fpsOn || !('requestVideoFrameCallback' in HTMLVideoElement.prototype)) { updateReadout(); return; }
+    fpsOn = true;
+    const tick = () => {
+      frames++;
+      const now = performance.now();
+      if (now - fpsT >= 1000) { fps = frames * 1000 / (now - fpsT); frames = 0; fpsT = now; updateReadout(); }
+      vA.requestVideoFrameCallback(tick);
+    };
+    vA.requestVideoFrameCallback(tick);
+  }
+
+  /* keep the screen on while the mirror is open */
+  let lock = null;
+  async function keepAwake(){
+    if (!('wakeLock' in navigator) || lock) return;
+    try { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } catch {}
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && stream) keepAwake();
+  });
+
+  /* ── snapshot ──────────────────────────────────────── */
+  let shotUrl = null, shotFile = null;
+  function snapshot(){
+    if (!track || !vA.videoWidth) return;
+    const vw = vA.videoWidth, vh = vA.videoHeight, z = +state.zoom;
+    const sw = vw / z, sh = vh / z, sx = (vw - sw) / 2, sy = (vh - sh) / 2;
+    const modes = state.split ? [state.mirrored, !state.mirrored] : [state.mirrored];
+    const stacked = state.split && matchMedia('(orientation: portrait)').matches;
+    const c = document.createElement('canvas');
+    c.width = vw * (state.split && !stacked ? 2 : 1);
+    c.height = vh * (stacked ? 2 : 1);
+    const ctx = c.getContext('2d');
+    const fx = filterStr(), t = tint();
+    modes.forEach((mirrored, i) => {
+      const dx = stacked ? 0 : i * vw, dy = stacked ? i * vh : 0;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(dx, dy, vw, vh); ctx.clip();
+      if ('filter' in ctx) ctx.filter = fx;
+      if (mirrored) { ctx.translate(dx + vw, dy); ctx.scale(-1, 1); } else ctx.translate(dx, dy);
+      ctx.drawImage(vA, sx, sy, sw, sh, 0, 0, vw, vh);
+      ctx.restore();
+      if (state.temp) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = t.alpha; ctx.fillStyle = t.color;
+        ctx.fillRect(dx, dy, vw, vh);
+        ctx.restore();
+      }
+    });
+    const sh_ = $('#shutter'); sh_.classList.remove('go'); void sh_.offsetWidth; sh_.classList.add('go');
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+    const name = `flipmir-${state.split ? 'both' : state.mirrored ? 'mirror' : 'true'}-${stamp}.png`;
+    c.toBlob(blob => {
+      if (!blob) return;
+      if (shotUrl) URL.revokeObjectURL(shotUrl);
+      shotUrl = URL.createObjectURL(blob);
+      shotFile = new File([blob], name, { type:'image/png' });
+      $('#shotImg').src = shotUrl;
+      $('#shotSave').href = shotUrl;
+      $('#shotSave').download = name;
+      $('#shotShare').hidden = !(navigator.canShare && navigator.canShare({ files:[shotFile] }));
+      $('#shot').hidden = false;
+    }, 'image/png');
+  }
+  function hideShot(){ $('#shot').hidden = true; }
+  $('#snapBtn').addEventListener('click', snapshot);
+  $('#shotClose').addEventListener('click', hideShot);
+  $('#shotShare').addEventListener('click', () => {
+    if (shotFile) navigator.share({ files:[shotFile], title:'FlipMir' }).catch(() => {});
+  });
+
+  /* ── boot ──────────────────────────────────────────── */
+  syncControls();
+  render();
+  startCamera();
+})();
+</script>
+</body>
+</html>
