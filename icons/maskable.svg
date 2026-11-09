@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <filter id="g" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="10"/></filter>
+  </defs>
+  <rect width="512" height="512" fill="#05070a"/>
+  <g transform="translate(256 256) scale(.72) translate(-256 -256)">
+    <path d="M256 92v328" stroke="#71839a" stroke-width="10" stroke-dasharray="20 16" stroke-linecap="round"/>
+    <path d="M212 140 96 372h116z" fill="#ffb03b" fill-opacity=".14" stroke="#ffb03b" stroke-width="18" stroke-linejoin="round"/>
+    <path d="M300 140l116 232H300z" fill="#3ee8ff" filter="url(#g)" opacity=".55"/>
+    <path d="M300 140l116 232H300z" fill="#3ee8ff" stroke="#3ee8ff" stroke-width="18" stroke-linejoin="round"/>
+  </g>
+</svg>
